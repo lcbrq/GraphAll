@@ -1,27 +1,26 @@
 <?php
 class LCB_GraphAll_Model_Reports_Resource_Order_Collection extends Mage_Reports_Model_Resource_Order_Collection
 {
-
     /**
-     * @see Mage_Reports_Model_Resource_Order_Collection
+     * Prepare report summary from live data including all order states except cancelled
+     *
+     * @param string $range
+     * @param mixed $customStart
+     * @param mixed $customEnd
+     * @param int $isFilter
+     * @return Mage_Reports_Model_Resource_Order_Collection
      */
-
     protected function _prepareSummaryLive($range, $customStart, $customEnd, $isFilter = 0)
     {
         $this->setMainTable('sales/order');
-        $adapter = $this->getConnection(); 
+        $adapter = $this->getConnection();
 
+        /**
+         * Reset all columns, because result will group only by 'created_at' field
+         */
         $this->getSelect()->reset(Zend_Db_Select::COLUMNS);
 
-        $expression = sprintf('%s - %s - %s - (%s - %s - %s)',
-            $adapter->getIfNullSql('main_table.base_total_invoiced', 'main_table.base_grand_total'),
-            $adapter->getIfNullSql('main_table.base_tax_invoiced', 'main_table.base_tax_amount'),
-            $adapter->getIfNullSql('main_table.base_shipping_invoiced',  'main_table.base_shipping_amount'),
-            $adapter->getIfNullSql('main_table.base_total_refunded', 0),
-            $adapter->getIfNullSql('main_table.base_tax_refunded', 0),
-            $adapter->getIfNullSql('main_table.base_shipping_refunded', 0)
-        );
-
+        $expression = $this->_getSalesAmountExpression();
         if ($isFilter == 0) {
             $this->getSelect()->columns(array(
                 'revenue' => new Zend_Db_Expr(
@@ -47,13 +46,10 @@ class LCB_GraphAll_Model_Reports_Resource_Order_Collection extends Mage_Reports_
                 'quantity' => 'COUNT(main_table.entity_id)',
                 'range' => $tzRangeOffsetExpression,
             ))
-        //BOF modification
-            //->where('main_table.state NOT IN (?)', array(
-            //Mage_Sales_Model_Order::STATE_PENDING_PAYMENT,
-            // Mage_Sales_Model_Order::STATE_NEW
-            //)
-            //)
-        //EOF modification
+            ->where('main_table.state NOT IN (?)', array(
+                Mage_Sales_Model_Order::STATE_CANCELED,
+                )
+            )
             ->order('range', Zend_Db_Select::SQL_ASC)
             ->group($tzRangeOffsetExpression);
 
@@ -61,7 +57,13 @@ class LCB_GraphAll_Model_Reports_Resource_Order_Collection extends Mage_Reports_
 
         return $this;
     }
-
+    
+    /**
+     * Calculate totals live report including all order states except cancelled
+     *
+     * @param int $isFilter
+     * @return Mage_Reports_Model_Resource_Order_Collection
+     */
     protected function _calculateTotalsLive($isFilter = 0)
     {
         $this->setMainTable('sales/order');
@@ -109,16 +111,14 @@ class LCB_GraphAll_Model_Reports_Resource_Order_Collection extends Mage_Reports_
 
         $this->getSelect()->columns(array(
             'quantity' => 'COUNT(main_table.entity_id)'
-        ));
-    //BOF modification
-        //->where('main_table.state NOT IN (?)', array(
-        //Mage_Sales_Model_Order::STATE_PENDING_PAYMENT,
-        //Mage_Sales_Model_Order::STATE_NEW
-        //)
-        //);
-    //EOF modification
-    
+        ))
+        ->where('main_table.state NOT IN (?)', array(
+            Mage_Sales_Model_Order::STATE_CANCELED,
+            )
+         );
+
         return $this;
     }
+    
 }
         
